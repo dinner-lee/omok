@@ -40,7 +40,7 @@ const App = () => {
   // Available emojis for selection
   const availableEmojis = [
     '😀', '😂', '🥳', '😎', '🤩', '🚀', '🌟', '🌈', '🍕', '🍔',
-    '🍩', '🍦', '🍓', '🍎', '⚽', '🏀', '🏈', '🎲', '🧩', '🏆'
+    '🍩', '�', '🍓', '🍎', '⚽', '🏀', '🏈', '🎲', '🧩', '🏆'
   ];
 
   // Initialize the board when boardSize changes or component mounts
@@ -178,7 +178,7 @@ const App = () => {
 
   // Handle board extension - Defined early to ensure scope
   const handleBoardExtension = () => {
-    const newSize = boardSize + parseInt(boardExtensionValue as string, 10); // Type assertion
+    const newSize = boardSize + (boardExtensionValue); // Removed parseInt and as string
     if (newSize > 12 && !gameStarted) { // Only allow extension before game starts and if new size is greater than 12
       setBoardSize(newSize);
       const newBoard: (number | null)[][] = Array(newSize).fill(null).map(() => Array(newSize).fill(null));
@@ -687,3 +687,4 @@ const PauseMenu = ({ onContinue }) => {
 };
 
 export default App;
+�
