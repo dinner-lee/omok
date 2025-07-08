@@ -337,7 +337,14 @@ const App = () => {
 };
 
 // GameBoard Component
-const GameBoard = ({ board, boardSize, onCellClick, players }) => {
+interface GameBoardProps {
+  board: (number | null)[][];
+  boardSize: number;
+  onCellClick: (row: number, col: number) => void;
+  players: Player[];
+}
+
+const GameBoard = ({ board, boardSize, onCellClick, players }: GameBoardProps) => {
   return (
     <div
       className="grid gap-0.5 bg-white/10 p-1 rounded-2xl shadow-xl backdrop-blur-md" // Liquid Glass effect - more transparent
@@ -368,7 +375,15 @@ const GameBoard = ({ board, boardSize, onCellClick, players }) => {
 };
 
 // PlayerInfoBar Component (Draggable and Snappable)
-const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerIndex }) => {
+interface PlayerInfoBarProps {
+  player: Player;
+  isCurrentPlayer: boolean;
+  timer: number;
+  totalPlayers: number;
+  playerIndex: number;
+}
+
+const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerIndex }: PlayerInfoBarProps) => {
   const barRef = useRef<HTMLDivElement>(null); // Explicitly type useRef
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -553,7 +568,19 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
 };
 
 // EmojiPicker Component (Modal for emoji selection)
-const EmojiPicker = ({ players, availableEmojis, selectedEmojis, onSelectEmoji, onStartGame, boardExtensionValue, setBoardExtensionValue, handleBoardExtension, currentBoardSize }) => {
+interface EmojiPickerProps {
+  players: Player[];
+  availableEmojis: string[];
+  selectedEmojis: { [key: number]: string };
+  onSelectEmoji: (playerId: number, emoji: string) => void;
+  onStartGame: () => void;
+  boardExtensionValue: number;
+  setBoardExtensionValue: React.Dispatch<React.SetStateAction<number>>;
+  handleBoardExtension: () => void;
+  currentBoardSize: number;
+}
+
+const EmojiPicker = ({ players, availableEmojis, selectedEmojis, onSelectEmoji, onStartGame, boardExtensionValue, setBoardExtensionValue, handleBoardExtension, currentBoardSize }: EmojiPickerProps) => {
   // Get all emojis that have been selected by any player
   const usedEmojis = Object.values(selectedEmojis);
 
@@ -623,7 +650,12 @@ const EmojiPicker = ({ players, availableEmojis, selectedEmojis, onSelectEmoji, 
 };
 
 // GameOverModal Component
-const GameOverModal = ({ winner, onResetGame }) => {
+interface GameOverModalProps {
+  winner: Player | null;
+  onResetGame: () => void;
+}
+
+const GameOverModal = ({ winner, onResetGame }: GameOverModalProps) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
       <div className="bg-white/40 p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center backdrop-blur-xl border border-white/50"> {/* Liquid Glass effect */}
@@ -652,7 +684,12 @@ const GameOverModal = ({ winner, onResetGame }) => {
 };
 
 // CustomAlertDialog Component
-const CustomAlertDialog = ({ message, onClose }) => {
+interface CustomAlertDialogProps {
+  message: string;
+  onClose: () => void;
+}
+
+const CustomAlertDialog = ({ message, onClose }: CustomAlertDialogProps) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100] p-4">
       <div className="bg-white/40 p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center backdrop-blur-xl border border-white/50"> {/* Liquid Glass effect */}
@@ -670,7 +707,11 @@ const CustomAlertDialog = ({ message, onClose }) => {
 };
 
 // PauseMenu Component
-const PauseMenu = ({ onContinue }) => {
+interface PauseMenuProps {
+  onContinue: () => void;
+}
+
+const PauseMenu = ({ onContinue }: PauseMenuProps) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100] p-4">
       <div className="bg-white/40 p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center backdrop-blur-xl border border-white/50"> {/* Liquid Glass effect */}
