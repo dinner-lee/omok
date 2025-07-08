@@ -687,4 +687,3 @@ const PauseMenu = ({ onContinue }) => {
 };
 
 export default App;
-�
