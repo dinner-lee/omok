@@ -40,7 +40,7 @@ const App = () => {
   // Available emojis for selection
   const availableEmojis = [
     '😀', '😂', '🥳', '😎', '🤩', '🚀', '🌟', '🌈', '🍕', '🍔',
-    '🍩', '�', '🍓', '🍎', '⚽', '🏀', '🏈', '🎲', '🧩', '🏆'
+    '�', '🍦', '🍓', '🍎', '⚽', '🏀', '🏈', '🎲', '🧩', '🏆'
   ];
 
   // Initialize the board when boardSize changes or component mounts
