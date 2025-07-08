@@ -2,12 +2,21 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
+// Player 인터페이스 정의
+interface Player {
+  id: number;
+  name: string;
+  emoji: string;
+  turns: number;
+  color: string;
+}
+
 // Main App Component
 const App = () => {
   // Game state variables
   const [boardSize, setBoardSize] = useState(12); // Initial board size
   const [board, setBoard] = useState<(number | null)[][]>([]); // 2D array representing the game board, explicitly typed
-  const [players, setPlayers] = useState([ // Player data
+  const [players, setPlayers] = useState<Player[]>([ // Player data
     { id: 0, name: '플레이어 1', emoji: '🔴', turns: 0, color: 'bg-red-500' },
     { id: 1, name: '플레이어 2', emoji: '🔵', turns: 0, color: 'bg-blue-500' },
     { id: 2, name: '플레이어 3', emoji: '🟢', turns: 0, color: 'bg-green-500' },
@@ -15,18 +24,18 @@ const App = () => {
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0); // Index of the current player
   const [timer, setTimer] = useState(20); // Current timer value
   const [gameStarted, setGameStarted] = useState(false); // Flag to indicate if the game has started
-  const [winner, setWinner] = useState(null); // Stores the winning player object
+  const [winner, setWinner] = useState<Player | null>(null); // Stores the winning player object, now explicitly typed
   const [isEmojiSelectionOpen, setIsEmojiSelectionOpen] = useState(true); // Controls emoji selection modal visibility
-  const [selectedEmojis, setSelectedEmojis] = useState({}); // Stores selected emojis for each player
+  const [selectedEmojis, setSelectedEmojis] = useState<{ [key: number]: string }>({}); // Stores selected emojis for each player
   const [boardExtensionValue, setBoardExtensionValue] = useState(0); // Value for board extension input
-  const [alertMessage, setAlertMessage] = useState(null); // State for custom alert message
+  const [alertMessage, setAlertMessage] = useState<string | null>(null); // State for custom alert message
   const [isPaused, setIsPaused] = useState(false); // New state for pause functionality
 
   // Fixed background image URL as requested by the user
   const backgroundImage = 'https://images.pexels.com/photos/1366919/pexels-photo-1366919.jpeg';
 
   // Ref for the timer interval
-  const timerRef = useRef(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null); // Explicitly type timerRef
 
   // Available emojis for selection
   const availableEmojis = [
@@ -97,7 +106,7 @@ const App = () => {
 
     // Check for win condition
     if (checkWin(newBoard, row, col, currentPlayer.id)) {
-      setWinner(currentPlayer);
+      setWinner(currentPlayer); // currentPlayer is of type Player, now allowed
       setGameStarted(false); // End the game
     } else {
       // Move to next player
@@ -122,7 +131,7 @@ const App = () => {
       handleCellClick(r, c); // Simulate a click on a random empty cell
     } else {
       // If no empty cells, it's a draw or game over
-      setWinner({ name: '무승부', turns: 'N/A' }); // Translated "Draw"
+      setWinner({ id: -1, name: '무승부', emoji: '', turns: 0, color: '' }); // Simplified Player object for draw
       setGameStarted(false);
     }
   }, [board, boardSize, handleCellClick]);
@@ -130,7 +139,9 @@ const App = () => {
   // Handle timer logic
   useEffect(() => {
     if (!gameStarted || winner || isPaused) { // Added isPaused condition
-      clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
       return;
     }
 
@@ -149,7 +160,7 @@ const App = () => {
       setTimer((prevTimer) => {
         if (prevTimer <= 1) {
           // Time's up, make a random move
-          clearInterval(timerRef.current);
+          clearInterval(timerRef.current!); // Use non-null assertion
           handleRandomMove();
           return timerSpeed; // Reset timer for next player
         }
@@ -158,7 +169,11 @@ const App = () => {
     }, 1000);
 
     // Cleanup interval on component unmount or when game ends/pauses
-    return () => clearInterval(timerRef.current);
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
   }, [currentPlayerIndex, gameStarted, boardSize, board, winner, isPaused, handleRandomMove]); // Added isPaused to dependencies
 
   // Handle board extension - Defined early to ensure scope
@@ -354,11 +369,11 @@ const GameBoard = ({ board, boardSize, onCellClick, players }) => {
 
 // PlayerInfoBar Component (Draggable and Snappable)
 const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerIndex }) => {
-  const barRef = useRef(null);
+  const barRef = useRef<HTMLDivElement>(null); // Explicitly type useRef
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [snappedTo, setSnappedTo] = useState(null); // 'top', 'bottom', 'left', 'right'
+  const [snappedTo, setSnappedTo] = useState<string | null>(null); // 'top', 'bottom', 'left', 'right'
 
   // Base dimensions for the horizontal bar
   const baseWidth = 180; // px
@@ -370,7 +385,7 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
       const screenWidth = window.innerWidth;
       const screenHeight = window.innerHeight;
 
-      let initialX, initialY, initialSnappedTo;
+      let initialX: number, initialY: number, initialSnappedTo: string;
 
       // Distribute players around the edges
       if (playerIndex === 0) { // Top-left
@@ -407,7 +422,7 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
 
     let newX = position.x;
     let newY = position.y;
-    let newSnappedTo = null;
+    let newSnappedTo: string | null = null;
 
     // Calculate distances to all four edges using the *base* dimensions
     const distances = {
@@ -418,16 +433,16 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
     };
 
     let minDistance = Infinity;
-    let closestEdge = null;
+    let closestEdge: string | null = null;
 
     for (const edge in distances) {
-      if (distances[edge] < minDistance) {
-        minDistance = distances[edge];
+      if (distances[edge as keyof typeof distances] < minDistance) { // Type assertion
+        minDistance = distances[edge as keyof typeof distances];
         closestEdge = edge;
       }
     }
 
-    if (minDistance < snapThreshold) {
+    if (closestEdge && minDistance < snapThreshold) {
       newSnappedTo = closestEdge;
       if (closestEdge === 'top') {
         newY = 10;
@@ -453,20 +468,24 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
     setSnappedTo(newSnappedTo);
   }, [position, baseWidth, baseHeight]); // Dependencies updated
 
-  const handleMouseDown = (e) => {
+  const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
     setIsDragging(true);
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     setOffset({
-      x: e.clientX - position.x,
-      y: e.clientY - position.y,
+      x: clientX - position.x,
+      y: clientY - position.y,
     });
     setSnappedTo(null); // Reset snapped state when dragging starts
   };
 
-  const handleMouseMove = useCallback((e) => {
+  const handleMouseMove = useCallback((e: MouseEvent | TouchEvent) => {
     if (!isDragging) return;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     setPosition({
-      x: e.clientX - offset.x,
-      y: e.clientY - offset.y,
+      x: clientX - offset.x,
+      y: clientY - offset.y,
     });
   }, [isDragging, offset]);
 
@@ -609,15 +628,15 @@ const GameOverModal = ({ winner, onResetGame }) => {
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
       <div className="bg-white/40 p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center backdrop-blur-xl border border-white/50"> {/* Liquid Glass effect */}
         <h2 className="text-3xl font-bold mb-4 text-white">게임 종료</h2>
-        {winner.name === '무승부' ? (
+        {winner && winner.name === '무승부' ? ( // Check winner for null before accessing name
           <p className="text-xl text-gray-700 mb-6 text-white">무승부</p>
         ) : (
           <>
             <p className="text-xl text-gray-700 mb-2 text-white">
-              <span className="font-bold text-blue-600">{winner.name}</span> 승리
+              <span className="font-bold text-blue-600">{winner?.name}</span> 승리 {/* Use optional chaining */}
             </p>
             <p className="text-lg text-gray-600 mb-6 text-white">
-              총 <span className="font-bold">{winner.turns}</span> 턴 소요.
+              총 <span className="font-bold">{winner?.turns}</span> 턴 소요. {/* Use optional chaining */}
             </p>
           </>
         )}
