@@ -6,7 +6,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 const App = () => {
   // Game state variables
   const [boardSize, setBoardSize] = useState(12); // Initial board size
-  const [board, setBoard] = useState([]); // 2D array representing the game board
+  const [board, setBoard] = useState<(number | null)[][]>([]); // 2D array representing the game board, explicitly typed
   const [players, setPlayers] = useState([ // Player data
     { id: 0, name: '플레이어 1', emoji: '🔴', turns: 0, color: 'bg-red-500' },
     { id: 1, name: '플레이어 2', emoji: '🔵', turns: 0, color: 'bg-blue-500' },
@@ -23,7 +23,7 @@ const App = () => {
   const [isPaused, setIsPaused] = useState(false); // New state for pause functionality
 
   // Fixed background image URL as requested by the user
-  const backgroundImage = 'https://images.squarespace-cdn.com/content/v1/5e949a92e17d55230cd1d44f/ea46f4c3-2ddb-45dc-8199-ad51276fb3ef/Tahoe1x1.png?format=2500w';
+  const backgroundImage = 'https://images.pexels.com/photos/1366919/pexels-photo-1366919.jpeg';
 
   // Ref for the timer interval
   const timerRef = useRef(null);
@@ -36,12 +36,12 @@ const App = () => {
 
   // Initialize the board when boardSize changes or component mounts
   useEffect(() => {
-    const initialBoard = Array(boardSize).fill(null).map(() => Array(boardSize).fill(null));
+    const initialBoard: (number | null)[][] = Array(boardSize).fill(null).map(() => Array(boardSize).fill(null));
     setBoard(initialBoard);
   }, [boardSize]);
 
   // Function to check for a win (5 in a row) - Defined first as it's a dependency for handleCellClick
-  const checkWin = useCallback((currentBoard, row, col, playerId) => {
+  const checkWin = useCallback((currentBoard: (number | null)[][], row: number, col: number, playerId: number) => {
     const directions = [
       [0, 1],   // Horizontal
       [1, 0],   // Vertical
@@ -79,7 +79,7 @@ const App = () => {
   }, [boardSize]);
 
   // Function to handle a cell click (placing a piece) - Defined after checkWin
-  const handleCellClick = useCallback((row, col) => {
+  const handleCellClick = useCallback((row: number, col: number) => {
     if (board[row][col] !== null || winner || !gameStarted || isPaused) { // Added isPaused condition
       return; // Cannot place on occupied cell, if game is over, not started, or paused
     }
@@ -107,7 +107,7 @@ const App = () => {
 
   // Function to handle a random move when timer runs out - Defined after handleCellClick
   const handleRandomMove = useCallback(() => {
-    const emptyCells = [];
+    const emptyCells: { r: number; c: number }[] = [];
     for (let r = 0; r < boardSize; r++) {
       for (let c = 0; c < boardSize; c++) {
         if (board[r][c] === null) {
@@ -163,10 +163,10 @@ const App = () => {
 
   // Handle board extension - Defined early to ensure scope
   const handleBoardExtension = () => {
-    const newSize = boardSize + parseInt(boardExtensionValue, 10);
+    const newSize = boardSize + parseInt(boardExtensionValue as string, 10); // Type assertion
     if (newSize > 12 && !gameStarted) { // Only allow extension before game starts and if new size is greater than 12
       setBoardSize(newSize);
-      const newBoard = Array(newSize).fill(null).map(() => Array(newSize).fill(null));
+      const newBoard: (number | null)[][] = Array(newSize).fill(null).map(() => Array(newSize).fill(null));
       setBoard(newBoard);
       setBoardExtensionValue(0); // Reset input
     } else if (gameStarted) {
@@ -177,7 +177,7 @@ const App = () => {
   };
 
   // Handle emoji selection for a player
-  const handleEmojiSelect = (playerId, emoji) => {
+  const handleEmojiSelect = (playerId: number, emoji: string) => {
     setSelectedEmojis(prev => ({ ...prev, [playerId]: emoji }));
   };
 
@@ -199,7 +199,7 @@ const App = () => {
     setGameStarted(true);
     setWinner(null); // Clear any previous winner
     setCurrentPlayerIndex(0); // Reset current player
-    const initialBoard = Array(boardSize).fill(null).map(() => Array(boardSize).fill(null));
+    const initialBoard: (number | null)[][] = Array(boardSize).fill(null).map(() => Array(boardSize).fill(null));
     setBoard(initialBoard); // Reset board
     setPlayers(prevPlayers => prevPlayers.map(p => ({ ...p, turns: 0 }))); // Reset turns
   };
