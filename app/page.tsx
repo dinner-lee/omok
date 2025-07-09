@@ -32,7 +32,7 @@ const App = () => {
   const [isPaused, setIsPaused] = useState(false); // New state for pause functionality
 
   // Fixed background image URL as requested by the user
-  const backgroundImage = 'https://512pixels.net/wp-content/uploads/2025/06/26-Tahoe-Light-6K-thumb.jpeg';
+  const backgroundImage = 'https://images.pexels.com/photos/1366919/pexels-photo-1366919.jpeg';
 
   // Ref for the timer interval
   const timerRef = useRef<NodeJS.Timeout | null>(null); // Explicitly type timerRef
@@ -40,7 +40,7 @@ const App = () => {
   // Available emojis for selection
   const availableEmojis = [
     '😀', '😂', '🥳', '😎', '🤩', '🚀', '🌟', '🌈', '🍕', '🍔',
-    '🍩', '🍦', '🍓', '🍎', '⚽', '�', '🏈', '🎲', '🧩', '🏆'
+    '🍩', '🍦', '🍓', '🍎', '⚽', '🏀', '🏈', '🎲', '🧩', '🏆'
   ];
 
   // Initialize the board when boardSize changes or component mounts
@@ -483,13 +483,11 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
     setSnappedTo(newSnappedTo);
   }, [position, baseWidth, baseHeight]); // Dependencies updated
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+  const handleMouseDown = (coords: { clientX: number; clientY: number }) => { // Changed type to accept object with clientX/Y
     setIsDragging(true);
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     setOffset({
-      x: clientX - position.x,
-      y: clientY - position.y,
+      x: coords.clientX - position.x,
+      y: coords.clientY - position.y,
     });
     setSnappedTo(null); // Reset snapped state when dragging starts
   };
@@ -547,8 +545,8 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
         height: `${baseHeight}px`, // Always use baseHeight
         transform: `rotate(${rotationDegrees}deg)`, // Apply rotation to the entire bar
       }}
-      onMouseDown={handleMouseDown}
-      onTouchStart={(e) => handleMouseDown(e.touches[0])}
+      onMouseDown={(e) => handleMouseDown({ clientX: e.clientX, clientY: e.clientY })} // Pass clientX/Y
+      onTouchStart={(e) => handleMouseDown({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY })} // Pass clientX/Y
     >
       {/* Content inside the bar - will rotate with the parent */}
       <div className="flex items-center space-x-2">
