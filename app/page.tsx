@@ -40,7 +40,7 @@ const App = () => {
   // Available emojis for selection
   const availableEmojis = [
     '😀', '😂', '🥳', '😎', '🤩', '🚀', '🌟', '🌈', '🍕', '🍔',
-    '🍩', '🍦', '🍓', '🍎', '⚽', '🏀', '🏈', '🎲', '🧩', '🏆'
+    '🍩', '🍦', '🍓', '🍎', '⚽', '🚗', '❤️', '🎲', '🧩', '🏆'
   ];
 
   // Initialize the board when boardSize changes or component mounts
@@ -241,6 +241,21 @@ const App = () => {
     setIsPaused(prev => !prev);
   };
 
+  // Function to toggle fullscreen mode
+  const toggleFullscreen = () => {
+    // Attempt to go fullscreen. This might be disallowed by browser security policies
+    // if not triggered directly by a user gesture or if in an iframe with restricted permissions.
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message} (${err.name})`);
+        // You might want to show a user-friendly message here if fullscreen fails
+        // e.g., setAlertMessage("전체화면 모드를 활성화할 수 없습니다. 브라우저 설정 또는 환경을 확인해주세요.");
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
   return (
     <>
       {/* Web Font Import */}
@@ -283,7 +298,7 @@ const App = () => {
         )}
 
         {/* Pause Menu */}
-        {isPaused && <PauseMenu onContinue={() => setIsPaused(false)} />}
+        {isPaused && <PauseMenu onContinue={() => setIsPaused(false)} onResetGame={resetGame} />}
 
         {/* Main game content, blurred when paused */}
         <div className={`flex flex-col items-center justify-center p-4 w-full h-full transition-all duration-300 ${isPaused ? 'filter blur-md pointer-events-none' : ''}`}>
@@ -299,18 +314,20 @@ const App = () => {
             />
           ))}
 
-          {/* Reset Game Button */}
+          {/* Fullscreen Button (now in top-left) */}
           {gameStarted && (
             <button
-              onClick={resetGame}
+              onClick={toggleFullscreen}
               className="absolute top-4 left-4 p-3 bg-white/20 text-white rounded-full shadow-lg hover:bg-white/30 transition duration-300 ease-in-out z-50 backdrop-blur-sm" // Liquid Glass style
-              title="게임 재시작"
+              title="전체화면 전환"
             >
-              <span className="text-xl">🔄</span>
+              <span className="text-xl">
+                {document.fullscreenElement ? '축소' : '전체화면'} {/* Icon for exit/enter fullscreen */}
+              </span>
             </button>
           )}
 
-          {/* Pause Button */}
+          {/* Pause Button (moved to top-right) */}
           {gameStarted && (
             <button
               onClick={togglePause}
@@ -666,7 +683,7 @@ const GameOverModal = ({ winner, onResetGame }: GameOverModalProps) => {
               <span className="font-bold text-blue-600">{winner?.name}</span> 승리 {/* Use optional chaining */}
             </p>
             <p className="text-lg text-gray-600 mb-6 text-white">
-              총 <span className="font-bold">{winner?.turns}</span> 턴 소요. {/* Use optional chaining */}
+              총 <span className="font-bold">{winner?.turns}</span> 턴 소요됨 {/* Use optional chaining */}
             </p>
           </>
         )}
@@ -707,19 +724,28 @@ const CustomAlertDialog = ({ message, onClose }: CustomAlertDialogProps) => {
 // PauseMenu Component
 interface PauseMenuProps {
   onContinue: () => void;
+  onResetGame: () => void; // Added onResetGame prop
 }
 
-const PauseMenu = ({ onContinue }: PauseMenuProps) => {
+const PauseMenu = ({ onContinue, onResetGame }: PauseMenuProps) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100] p-4">
       <div className="bg-white/40 p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center backdrop-blur-xl border border-white/50"> {/* Liquid Glass effect */}
         <h2 className="text-3xl font-bold mb-4 text-white">일시정지</h2>
-        <button
-          onClick={onContinue}
-          className="px-6 py-3 bg-white/20 text-white font-semibold rounded-full shadow-lg hover:bg-white/30 transition duration-300 ease-in-out transform hover:scale-105 backdrop-blur-sm" // Liquid Glass style
-        >
-          이어서 하기
-        </button>
+        <div className="flex justify-center space-x-4 mt-6"> {/* Container for buttons */}
+          <button
+            onClick={onContinue}
+            className="px-6 py-3 bg-white/20 text-white font-semibold rounded-full shadow-lg hover:bg-white/30 transition duration-300 ease-in-out transform hover:scale-105 backdrop-blur-sm" // Liquid Glass style
+          >
+            이어서 하기
+          </button>
+          <button
+            onClick={onResetGame} // Call resetGame on click
+            className="px-6 py-3 bg-white/20 text-white font-semibold rounded-full shadow-lg hover:bg-white/30 transition duration-300 ease-in-out transform hover:scale-105 backdrop-blur-sm" // Liquid Glass style
+          >
+            다시 시작하기
+          </button>
+        </div>
       </div>
     </div>
   );
