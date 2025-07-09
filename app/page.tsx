@@ -32,7 +32,7 @@ const App = () => {
   const [isPaused, setIsPaused] = useState(false); // New state for pause functionality
 
   // Fixed background image URL as requested by the user
-  const backgroundImage = 'https://images.pexels.com/photos/1366919/pexels-photo-1366919.jpeg';
+  const backgroundImage = 'https://512pixels.net/wp-content/uploads/2025/06/26-Tahoe-Light-6K-thumb.jpeg';
 
   // Ref for the timer interval
   const timerRef = useRef<NodeJS.Timeout | null>(null); // Explicitly type timerRef
@@ -40,7 +40,7 @@ const App = () => {
   // Available emojis for selection
   const availableEmojis = [
     '😀', '😂', '🥳', '😎', '🤩', '🚀', '🌟', '🌈', '🍕', '🍔',
-    '�', '🍦', '🍓', '🍎', '⚽', '🏀', '🏈', '🎲', '🧩', '🏆'
+    '🍩', '🍦', '🍓', '🍎', '⚽', '�', '🏈', '🎲', '🧩', '🏆'
   ];
 
   // Initialize the board when boardSize changes or component mounts
@@ -483,7 +483,7 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
     setSnappedTo(newSnappedTo);
   }, [position, baseWidth, baseHeight]); // Dependencies updated
 
-  const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     setIsDragging(true);
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
