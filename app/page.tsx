@@ -30,16 +30,20 @@ const App = () => {
   const [boardExtensionValue, setBoardExtensionValue] = useState(0); // Value for board extension input
   const [alertMessage, setAlertMessage] = useState<string | null>(null); // State for custom alert message
   const [isPaused, setIsPaused] = useState(false); // New state for pause functionality
+  // New state for computer player
+  const [isPlayer3Computer, setIsPlayer3Computer] = useState(false); // Player 3 as computer
 
   // Fixed background image URL as requested by the user
   const backgroundImage = 'https://512pixels.net/wp-content/uploads/2025/06/26-Tahoe-Light-6K-thumb.jpeg';
 
   // Ref for the timer interval
   const timerRef = useRef<NodeJS.Timeout | null>(null); // Explicitly type timerRef
+  // Ref for computer player move timeout
+  const computerMoveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Available emojis for selection
   const availableEmojis = [
-    '😀', '😂', '🥳', '😎', '🤩', '🚀', '🌟', '🌈', '🍕', '🍔',
+    '😀', '😂', '🥳', '😎', '🤩', '🚀', '🍧', '🌈', '🍕', '�',
     '🍩', '🍦', '🍓', '🍎', '⚽', '🚗', '❤️', '🎲', '🧩', '🏆'
   ];
 
@@ -49,8 +53,8 @@ const App = () => {
     setBoard(initialBoard);
   }, [boardSize]);
 
-  // Function to check for a win (5 in a row) - Defined first as it's a dependency for handleCellClick
-  const checkWin = useCallback((currentBoard: (number | null)[][], row: number, col: number, playerId: number) => {
+  // Function to get max consecutive pieces for a player at a given cell
+  const getConsecutiveCount = useCallback((currentBoard: (number | null)[][], row: number, col: number, playerId: number): number => {
     const directions = [
       [0, 1],   // Horizontal
       [1, 0],   // Vertical
@@ -58,10 +62,13 @@ const App = () => {
       [1, -1]   // Diagonal (top-right to bottom-left)
     ];
 
+    let maxCount = 0;
+
     for (const [dr, dc] of directions) {
-      let count = 1; // Count of consecutive pieces
+      let count = 1; // Start with the piece at (row, col) itself
+
       // Check in one direction
-      for (let i = 1; i < 5; i++) {
+      for (let i = 1; i < boardSize; i++) {
         const r = row + i * dr;
         const c = col + i * dc;
         if (r >= 0 && r < boardSize && c >= 0 && c < boardSize && currentBoard[r][c] === playerId) {
@@ -71,7 +78,7 @@ const App = () => {
         }
       }
       // Check in the opposite direction
-      for (let i = 1; i < 5; i++) {
+      for (let i = 1; i < 5; i++) { // Changed to 5 to match win condition
         const r = row - i * dr;
         const c = col - i * dc;
         if (r >= 0 && r < boardSize && c >= 0 && c < boardSize && currentBoard[r][c] === playerId) {
@@ -80,41 +87,39 @@ const App = () => {
           break;
         }
       }
-      if (count >= 5) {
-        return true; // Found 5 in a row
+      if (count > maxCount) {
+        maxCount = count;
       }
     }
-    return false; // No win yet
+    return maxCount;
   }, [boardSize]);
 
-  // Function to handle a cell click (placing a piece) - Defined after checkWin
+  // Function to handle a cell click (placing a piece)
   const handleCellClick = useCallback((row: number, col: number) => {
-    if (board[row][col] !== null || winner || !gameStarted || isPaused) { // Added isPaused condition
-      return; // Cannot place on occupied cell, if game is over, not started, or paused
+    if (board[row][col] !== null || winner || !gameStarted || isPaused) {
+      return;
     }
 
-    const newBoard = board.map(arr => [...arr]); // Deep copy the board
+    const newBoard = board.map(arr => [...arr]);
     const currentPlayer = players[currentPlayerIndex];
-    newBoard[row][col] = currentPlayer.id; // Place current player's piece
+    newBoard[row][col] = currentPlayer.id;
 
     setBoard(newBoard);
 
-    // Update player's turn count
     setPlayers(prevPlayers => prevPlayers.map((p, index) =>
       index === currentPlayerIndex ? { ...p, turns: p.turns + 1 } : p
     ));
 
-    // Check for win condition
-    if (checkWin(newBoard, row, col, currentPlayer.id)) {
-      setWinner(currentPlayer); // currentPlayer is of type Player, now allowed
-      setGameStarted(false); // End the game
+    // Check for win condition using the new getConsecutiveCount
+    if (getConsecutiveCount(newBoard, row, col, currentPlayer.id) >= 5) {
+      setWinner(currentPlayer);
+      setGameStarted(false);
     } else {
-      // Move to next player
       setCurrentPlayerIndex((prevIndex) => (prevIndex + 1) % players.length);
     }
-  }, [board, players, currentPlayerIndex, winner, gameStarted, isPaused, checkWin]); // Added isPaused to dependencies
+  }, [board, players, currentPlayerIndex, winner, gameStarted, isPaused, getConsecutiveCount]);
 
-  // Function to handle a random move when timer runs out - Defined after handleCellClick
+  // Function to handle a random move when timer runs out or as AI fallback
   const handleRandomMove = useCallback(() => {
     const emptyCells: { r: number; c: number }[] = [];
     for (let r = 0; r < boardSize; r++) {
@@ -128,17 +133,123 @@ const App = () => {
     if (emptyCells.length > 0) {
       const randomIndex = Math.floor(Math.random() * emptyCells.length);
       const { r, c } = emptyCells[randomIndex];
-      handleCellClick(r, c); // Simulate a click on a random empty cell
+      handleCellClick(r, c);
     } else {
-      // If no empty cells, it's a draw or game over
-      setWinner({ id: -1, name: '무승부', emoji: '', turns: 0, color: '' }); // Simplified Player object for draw
+      setWinner({ id: -1, name: '무승부', emoji: '', turns: 0, color: '' });
       setGameStarted(false);
     }
   }, [board, boardSize, handleCellClick]);
 
-  // Handle timer logic
+  // AI logic for computer player
+  const makeComputerMoveAI = useCallback(() => {
+    const emptyCells: { r: number; c: number }[] = [];
+    for (let r = 0; r < boardSize; r++) {
+      for (let c = 0; c < boardSize; c++) {
+        if (board[r][c] === null) {
+          emptyCells.push({ r, c });
+        }
+      }
+    }
+
+    if (emptyCells.length === 0) {
+      setWinner({ id: -1, name: '무승부', emoji: '', turns: 0, color: '' });
+      setGameStarted(false);
+      return;
+    }
+
+    const computerPlayerId = players[currentPlayerIndex].id;
+    const humanPlayerIds = players.filter(p => p.id !== computerPlayerId).map(p => p.id);
+
+    // Helper to try a move and return true if successful
+    const tryMove = (row: number, col: number): boolean => {
+        if (board[row][col] === null) {
+            handleCellClick(row, col);
+            return true;
+        }
+        return false;
+    };
+
+    // 1. 컴퓨터의 승리 수 찾기 (5개 연속)
+    for (const { r, c } of emptyCells) {
+      const tempBoard = board.map(arr => [...arr]);
+      tempBoard[r][c] = computerPlayerId;
+      if (getConsecutiveCount(tempBoard, r, c, computerPlayerId) >= 5) {
+        if (tryMove(r, c)) return;
+      }
+    }
+
+    // 2. 인간 플레이어의 5개 연속 승리 방해
+    for (const humanId of humanPlayerIds) {
+      for (const { r, c } of emptyCells) {
+        const tempBoard = board.map(arr => [...arr]);
+        tempBoard[r][c] = humanId; // 인간 플레이어의 수를 시뮬레이션
+        if (getConsecutiveCount(tempBoard, r, c, humanId) >= 5) {
+          if (tryMove(r, c)) return; // 인간 플레이어의 승리 방해
+        }
+      }
+    }
+
+    // 3. 인간 플레이어의 4개 연속 위협 방해 (즉각적인 위협)
+    for (const humanId of humanPlayerIds) {
+      for (const { r, c } of emptyCells) {
+        const tempBoard = board.map(arr => [...arr]);
+        tempBoard[r][c] = humanId;
+        if (getConsecutiveCount(tempBoard, r, c, humanId) >= 4) {
+          if (tryMove(r, c)) return; // 4개 연속 방해
+        }
+      }
+    }
+
+    // 4. 컴퓨터의 4개 연속 기회 만들기
+    for (const { r, c } of emptyCells) {
+      const tempBoard = board.map(arr => [...arr]);
+      tempBoard[r][c] = computerPlayerId;
+      if (getConsecutiveCount(tempBoard, r, c, computerPlayerId) >= 4) {
+        if (tryMove(r, c)) return; // 자신의 4개 연속 만들기
+      }
+    }
+
+    // 5. 인간 플레이어의 3개 연속 위협 방해
+    for (const humanId of humanPlayerIds) {
+      for (const { r, c } of emptyCells) {
+        const tempBoard = board.map(arr => [...arr]);
+        tempBoard[r][c] = humanId;
+        if (getConsecutiveCount(tempBoard, r, c, humanId) >= 3) {
+          if (tryMove(r, c)) return; // 3개 연속 방해
+        }
+      }
+    }
+
+    // 6. 컴퓨터의 3개 연속 기회 만들기
+    for (const { r, c } of emptyCells) {
+      const tempBoard = board.map(arr => [...arr]);
+      tempBoard[r][c] = computerPlayerId;
+      if (getConsecutiveCount(tempBoard, r, c, computerPlayerId) >= 3) {
+        if (tryMove(r, c)) return; // 자신의 3개 연속 만들기
+      }
+    }
+
+    // 7. 전략적인 중앙 배치 (간단한 예시)
+    // 보드 중앙에 가까운 빈 칸을 선호
+    const center = Math.floor(boardSize / 2);
+    const sortedEmptyCells = [...emptyCells].sort((a, b) => {
+        const distA = Math.abs(a.r - center) + Math.abs(a.c - center);
+        const distB = Math.abs(b.r - center) + Math.abs(b.c - center);
+        return distA - distB;
+    });
+
+    for (const { r, c } of sortedEmptyCells) {
+        if (tryMove(r, c)) return;
+    }
+
+    // 8. 모든 전략이 실패하면 무작위 수
+    handleRandomMove();
+  }, [board, boardSize, players, currentPlayerIndex, getConsecutiveCount, handleCellClick, handleRandomMove]);
+
+
+  // Handle timer logic (for human players' timeout and general turn progression)
   useEffect(() => {
-    if (!gameStarted || winner || isPaused) { // Added isPaused condition
+    if (!gameStarted || winner || isPaused) {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
@@ -159,9 +270,12 @@ const App = () => {
     timerRef.current = setInterval(() => {
       setTimer((prevTimer) => {
         if (prevTimer <= 1) {
-          // Time's up, make a random move
           clearInterval(timerRef.current!); // Use non-null assertion
-          handleRandomMove();
+          // If current player is computer, their move is handled by a separate useEffect.
+          // This ensures human players still get a random move if they time out.
+          if (!(players[currentPlayerIndex].id === 2 && isPlayer3Computer)) {
+            handleRandomMove();
+          }
           return timerSpeed; // Reset timer for next player
         }
         return prevTimer - 1;
@@ -174,7 +288,30 @@ const App = () => {
         clearInterval(timerRef.current);
       }
     };
-  }, [currentPlayerIndex, gameStarted, boardSize, board, winner, isPaused, handleRandomMove]); // Added isPaused to dependencies
+  }, [currentPlayerIndex, gameStarted, boardSize, board, winner, isPaused, handleRandomMove, isPlayer3Computer, players]); // Removed makeComputerMoveAI from here
+
+  // Effect for computer player's move with a delay
+  useEffect(() => {
+    if (gameStarted && !isPaused && winner === null && players[currentPlayerIndex].id === 2 && isPlayer3Computer) {
+      // Clear any existing timeout to prevent multiple moves if state changes quickly
+      if (computerMoveTimeoutRef.current) {
+        clearTimeout(computerMoveTimeoutRef.current);
+      }
+
+      // Set a timeout for the computer's move (e.g., 2 seconds)
+      computerMoveTimeoutRef.current = setTimeout(() => {
+        makeComputerMoveAI();
+      }, 2000); // Computer makes a move after 2 seconds
+    }
+
+    // Cleanup function: clear the timeout if the component unmounts or dependencies change
+    return () => {
+      if (computerMoveTimeoutRef.current) {
+        clearTimeout(computerMoveTimeoutRef.current);
+      }
+    };
+  }, [currentPlayerIndex, gameStarted, isPaused, winner, isPlayer3Computer, players, makeComputerMoveAI]);
+
 
   // Handle board extension - Defined early to ensure scope
   const handleBoardExtension = () => {
@@ -198,17 +335,24 @@ const App = () => {
 
   // Start the game after emoji selection
   const startGame = () => {
-    // Check if all players have selected an emoji
-    if (Object.keys(selectedEmojis).length !== players.length) {
+    // Determine which players need manual emoji selection
+    const playersNeedingSelection = players.filter(p => !(p.id === 2 && isPlayer3Computer));
+
+    // Check if all *human* players have selected an emoji
+    const allHumanPlayersSelected = playersNeedingSelection.every(p => selectedEmojis[p.id]);
+
+    if (!allHumanPlayersSelected) {
       setAlertMessage('모든 플레이어는 말을 선택해야 합니다'); // Translated "All players must select an emoji!"
       return;
     }
 
-    // Update player emojis based on selection
-    setPlayers(prevPlayers => prevPlayers.map(p => ({
-      ...p,
-      emoji: selectedEmojis[p.id] || p.emoji // Use selected emoji or default
-    })));
+    // Update player emojis and names based on computer player setting
+    setPlayers(prevPlayers => prevPlayers.map(p => {
+      if (p.id === 2 && isPlayer3Computer) {
+        return { ...p, name: '컴퓨터', emoji: '🤖' }; // Set computer's name and emoji
+      }
+      return { ...p, emoji: selectedEmojis[p.id] || p.emoji }; // Use selected emoji or default
+    }));
 
     setIsEmojiSelectionOpen(false);
     setGameStarted(true);
@@ -228,11 +372,15 @@ const App = () => {
     setBoardExtensionValue(0); // Reset board extension
     setBoardSize(12); // Reset board size
     setCurrentPlayerIndex(0);
-    setPlayers(prevPlayers => prevPlayers.map((p, index) => ({
-      ...p,
-      turns: 0,
-      emoji: index === 0 ? '🔴' : index === 1 ? '🔵' : '🟢' // Reset to default emojis
-    })));
+    // Reset players by mapping over the previous state to update properties,
+    // instead of creating a brand new array literal. This preserves component identity.
+    setPlayers(prevPlayers => prevPlayers.map(p => {
+      if (p.id === 0) return { ...p, name: '플레이어 1', emoji: '🔴', turns: 0, color: 'bg-red-500' };
+      if (p.id === 1) return { ...p, name: '플레이어 2', emoji: '🔵', turns: 0, color: 'bg-blue-500' };
+      if (p.id === 2) return { ...p, name: '플레이어 3', emoji: '🟢', turns: 0, color: 'bg-green-500' };
+      return p; // Fallback, though should not be reached with fixed IDs
+    }));
+    setIsPlayer3Computer(false); // Reset computer player setting
     setIsPaused(false); // Ensure game is not paused on reset
   };
 
@@ -265,6 +413,9 @@ const App = () => {
           body {
             font-family: 'Gowun Dodum', sans-serif;
           }
+
+          /* Removed Custom keyframes for the dynamic border animation */
+          /* Removed .computer-border-effect CSS rules */
         `}
       </style>
 
@@ -288,6 +439,8 @@ const App = () => {
             boardExtensionValue={boardExtensionValue}
             setBoardExtensionValue={setBoardExtensionValue}
             handleBoardExtension={handleBoardExtension}
+            isPlayer3Computer={isPlayer3Computer} // Pass computer player state
+            setIsPlayer3Computer={setIsPlayer3Computer} // Pass setter for computer player
             currentBoardSize={boardSize}
           />
         )}
@@ -311,6 +464,7 @@ const App = () => {
               timer={timer}
               totalPlayers={players.length}
               playerIndex={index}
+              isPlayer3Computer={isPlayer3Computer} // Pass computer player state
             />
           ))}
 
@@ -334,7 +488,7 @@ const App = () => {
               className="absolute top-4 right-4 p-3 bg-white/20 text-white rounded-full shadow-lg hover:bg-white/30 transition duration-300 ease-in-out z-50 backdrop-blur-sm" // Liquid Glass style
               title="게임 일시정지"
             >
-              <span className="text-xl">⏸️</span>
+              <span className="text-xl">⏸</span>
             </button>
           )}
 
@@ -345,6 +499,8 @@ const App = () => {
               boardSize={boardSize}
               onCellClick={handleCellClick}
               players={players}
+              currentPlayerId={players[currentPlayerIndex].id} // Pass current player's ID
+              isPlayer3Computer={isPlayer3Computer} // Pass computer player state
             />
           )}
         </div>
@@ -359,9 +515,13 @@ interface GameBoardProps {
   boardSize: number;
   onCellClick: (row: number, col: number) => void;
   players: Player[];
+  currentPlayerId: number; // New prop
+  isPlayer3Computer: boolean; // New prop
 }
 
-const GameBoard = ({ board, boardSize, onCellClick, players }: GameBoardProps) => {
+const GameBoard = ({ board, boardSize, onCellClick, players, currentPlayerId, isPlayer3Computer }: GameBoardProps) => {
+  const isCurrentPlayerComputer = isPlayer3Computer && currentPlayerId === 2; // Assuming player 3 is ID 2
+
   return (
     <div
       className="grid gap-0.5 bg-white/10 p-1 rounded-2xl shadow-xl backdrop-blur-md" // Liquid Glass effect - more transparent
@@ -376,8 +536,14 @@ const GameBoard = ({ board, boardSize, onCellClick, players }: GameBoardProps) =
         row.map((cell, colIndex) => (
           <div
             key={`${rowIndex}-${colIndex}`}
-            className="w-full h-full bg-white/20 flex items-center justify-center rounded-lg cursor-pointer hover:bg-white/40 transition duration-150 ease-in-out backdrop-blur-sm" // Liquid Glass effect - more transparent
-            onClick={() => onCellClick(rowIndex, colIndex)}
+            className={`w-full h-full bg-white/20 flex items-center justify-center rounded-lg transition duration-150 ease-in-out backdrop-blur-sm
+              ${isCurrentPlayerComputer ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-white/40'} // Conditional cursor/hover
+            `}
+            onClick={() => {
+              if (!isCurrentPlayerComputer) { // Only allow click if not computer's turn
+                onCellClick(rowIndex, colIndex);
+              }
+            }}
           >
             {cell !== null && (
               <span className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl">
@@ -398,51 +564,57 @@ interface PlayerInfoBarProps {
   timer: number;
   totalPlayers: number;
   playerIndex: number;
+  isPlayer3Computer: boolean; // New prop for computer player state
 }
 
-const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerIndex }: PlayerInfoBarProps) => {
-  const barRef = useRef<HTMLDivElement>(null); // Explicitly type useRef
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerIndex, isPlayer3Computer }: PlayerInfoBarProps) => {
+  const barRef = useRef<HTMLDivElement>(null);
+  const snapOffset = 10; // Distance from edge to snap
+
+  const baseWidth = 180;
+  const baseHeight = 80;
+  const halfWidth = baseWidth / 2;
+  const halfHeight = baseHeight / 2;
+
+  // Calculate initial position only once when the component mounts
+  // This function is defined outside the component render to prevent re-creation on every render
+  // and used with useState's lazy initialization.
+  const getInitialPositionAndSnap = useCallback(() => {
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+
+    let initialX: number, initialY: number, initialSnappedTo: string | null;
+
+    // Determine initial position based on playerIndex
+    if (playerIndex === 0) { // Top-center (horizontal)
+      initialX = screenWidth / 2 - halfWidth;
+      initialY = snapOffset;
+      initialSnappedTo = 'top';
+    } else if (playerIndex === 1) { // Bottom-center (horizontal)
+      initialX = screenWidth / 2 - halfWidth;
+      initialY = screenHeight - baseHeight - snapOffset; // baseHeight
+      initialSnappedTo = 'bottom';
+    } else if (playerIndex === 2) { // Left-center (vertical)
+      initialX = snapOffset + halfHeight - halfWidth; // Visual left edge at snapOffset
+      initialY = screenHeight / 2 - halfWidth; // Center vertically
+      initialSnappedTo = 'left';
+    } else { // Fallback, e.g., for player 4 if re-added
+      initialX = (screenWidth - snapOffset - baseHeight) - (halfWidth - halfHeight); // baseHeight
+      initialY = screenHeight / 2 - halfWidth; // Effective height is baseWidth
+      initialSnappedTo = 'right';
+    }
+    return { position: { x: initialX, y: initialY }, snappedTo: initialSnappedTo };
+  }, [playerIndex, baseWidth, baseHeight, snapOffset, halfWidth, halfHeight]); // Dependencies for initial calculation
+
+  // Use lazy initialization for position and snappedTo
+  const [position, setPosition] = useState(() => getInitialPositionAndSnap().position);
+  const [snappedTo, setSnappedTo] = useState(() => getInitialPositionAndSnap().snappedTo);
+
   const [isDragging, setIsDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [snappedTo, setSnappedTo] = useState<string | null>(null); // 'top', 'bottom', 'left', 'right'
 
-  // Base dimensions for the horizontal bar
-  const baseWidth = 180; // px
-  const baseHeight = 80; // px
 
-  // Initial positioning based on player index
-  useEffect(() => {
-    const initialPositioning = () => {
-      const screenWidth = window.innerWidth;
-      const screenHeight = window.innerHeight;
-
-      let initialX: number, initialY: number, initialSnappedTo: string;
-
-      // Distribute players around the edges
-      if (playerIndex === 0) { // Top-left
-        initialX = 20;
-        initialY = 20;
-        initialSnappedTo = 'top'; // Initially horizontal
-      } else if (playerIndex === 1) { // Top-right
-        initialX = screenWidth - baseWidth - 20; // Use baseWidth for horizontal
-        initialY = 20;
-        initialSnappedTo = 'top';
-      } else { // Bottom-center
-        initialX = (screenWidth - baseWidth) / 2;
-        initialY = screenHeight - baseHeight - 20;
-        initialSnappedTo = 'bottom';
-      }
-      setPosition({ x: initialX, y: initialY });
-      setSnappedTo(initialSnappedTo);
-    };
-
-    initialPositioning();
-    window.addEventListener('resize', initialPositioning);
-    return () => window.removeEventListener('resize', initialPositioning);
-  }, [playerIndex, baseWidth, baseHeight]);
-
-  // Function to snap the bar to the nearest edge
+  // Function to snap the bar to the nearest edge (called after drag and on resize if snapped)
   const snapToEdge = useCallback(() => {
     const bar = barRef.current;
     if (!bar) return;
@@ -452,55 +624,72 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
 
     const snapThreshold = 50; // Pixels from edge to snap
 
-    let newX = position.x;
-    let newY = position.y;
+    let currentX = position.x;
+    let currentY = position.y;
     let newSnappedTo: string | null = null;
 
-    // Calculate distances to all four edges using the *base* dimensions
     const distances = {
-      top: position.y,
-      bottom: screenHeight - (position.y + baseHeight),
-      left: position.x,
-      right: screenWidth - (position.x + baseWidth)
+      top: currentY,
+      bottom: screenHeight - (currentY + baseHeight),
+      left: currentX,
+      right: screenWidth - (currentX + baseWidth)
     };
 
     let minDistance = Infinity;
     let closestEdge: string | null = null;
 
     for (const edge in distances) {
-      if (distances[edge as keyof typeof distances] < minDistance) { // Type assertion
+      if (distances[edge as keyof typeof distances] < minDistance) {
         minDistance = distances[edge as keyof typeof distances];
         closestEdge = edge;
       }
     }
 
+    let finalX = currentX;
+    let finalY = currentY;
+
     if (closestEdge && minDistance < snapThreshold) {
       newSnappedTo = closestEdge;
+
       if (closestEdge === 'top') {
-        newY = 10;
-        newX = Math.max(10, Math.min(screenWidth - baseWidth - 10, newX)); // Clamp X to horizontal bounds
+        finalY = snapOffset;
+        finalX = Math.max(snapOffset, Math.min(screenWidth - baseWidth - snapOffset, currentX));
       } else if (closestEdge === 'bottom') {
-        newY = screenHeight - baseHeight - 10;
-        newX = Math.max(10, Math.min(screenWidth - baseWidth - 10, newX)); // Clamp X to horizontal bounds
+        finalY = screenHeight - baseHeight - snapOffset;
+        finalX = Math.max(snapOffset, Math.min(screenWidth - baseWidth - snapOffset, currentX));
       } else if (closestEdge === 'left') {
-        newX = 10;
-        newY = Math.max(10, Math.min(screenHeight - baseHeight - 10, newY)); // Clamp Y to vertical bounds (using baseHeight for vertical positioning)
+        finalX = snapOffset + halfHeight - halfWidth;
+        finalY = Math.max(snapOffset, Math.min(screenHeight - baseWidth - snapOffset, currentY));
       } else if (closestEdge === 'right') {
-        newX = screenWidth - baseWidth - 10; // Use baseWidth for X position when vertical
-        newY = Math.max(10, Math.min(screenHeight - baseHeight - 10, newY)); // Clamp Y to vertical bounds (using baseHeight for vertical positioning)
+        finalX = (screenWidth - snapOffset - baseHeight) - (halfWidth - halfHeight);
+        finalY = Math.max(snapOffset, Math.min(screenHeight - baseWidth - snapOffset, currentY));
       }
     } else {
-      // If not snapping, keep current position and snappedTo state
-      newX = position.x;
-      newY = position.y;
-      newSnappedTo = null; // No longer snapped
+      finalX = currentX;
+      finalY = currentY;
+      newSnappedTo = null;
     }
 
-    setPosition({ x: newX, y: newY });
+    setPosition({ x: finalX, y: finalY });
     setSnappedTo(newSnappedTo);
-  }, [position, baseWidth, baseHeight]); // Dependencies updated
+  }, [position, baseWidth, baseHeight, snapOffset, halfWidth, halfHeight]); // Dependencies for useCallback
 
-  const handleMouseDown = (coords: { clientX: number; clientY: number }) => { // Changed type to accept object with clientX/Y
+  // Effect to handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      // If the bar is currently snapped, re-snap it to adjust to new screen dimensions.
+      if (snappedTo !== null) {
+        snapToEdge();
+      }
+      // If not snapped, its absolute pixel position should remain fixed.
+      // No need to re-calculate initial position if it was already set by dragging.
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [snappedTo, snapToEdge]); // Dependencies for useEffect
+
+  const handleMouseDown = (coords: { clientX: number; clientY: number }) => {
     setIsDragging(true);
     setOffset({
       x: coords.clientX - position.x,
@@ -522,13 +711,13 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
     snapToEdge();
-  }, [isDragging, snapToEdge]); // Added snapToEdge to dependencies
+  }, [isDragging, snapToEdge]);
 
   useEffect(() => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('touchmove', handleMouseMove, { passive: false }); // Added passive: false for touch events
+      document.addEventListener('touchmove', handleMouseMove, { passive: false });
       document.addEventListener('touchend', handleMouseUp);
     } else {
       document.removeEventListener('mousemove', handleMouseMove);
@@ -546,14 +735,20 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
 
   // Determine rotation based on snappedTo state
   const rotationDegrees = (snappedTo === 'left') ? 90 :
-                          (snappedTo === 'right') ? -90 : 0;
+                          (snappedTo === 'right') ? -90 :
+                          (snappedTo === 'top') ? 180 :
+                          0;
+
+  // Determine if the current player is the active computer player
+  const isActiveComputerPlayer = isCurrentPlayer && isPlayer3Computer && player.id === 2;
 
   return (
     <div
       ref={barRef}
       className={`absolute flex items-center justify-center p-3 rounded-3xl shadow-xl transition-all duration-300 ease-in-out transform
-        ${isCurrentPlayer ? 'border-4 border-yellow-300/70 scale-105' : 'border border-gray-300/50'}
+        ${isCurrentPlayer ? 'scale-105' : ''} /* Scale for current player */
         ${player.color}/30 text-white cursor-grab active:cursor-grabbing z-50 backdrop-blur-sm
+        ${isCurrentPlayer ? 'border-4 border-yellow-300/70' : 'border-4 border-gray-300/50'} /* Always 4px border */
       `}
       style={{
         left: `${position.x}px`,
@@ -561,9 +756,11 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
         width: `${baseWidth}px`, // Always use baseWidth
         height: `${baseHeight}px`, // Always use baseHeight
         transform: `rotate(${rotationDegrees}deg)`, // Apply rotation to the entire bar
+        transformOrigin: '50% 50%', // Explicitly set transform origin
+        willChange: 'transform', // Hint for browser optimization
       }}
-      onMouseDown={(e) => handleMouseDown({ clientX: e.clientX, clientY: e.clientY })} // Pass clientX/Y
-      onTouchStart={(e) => handleMouseDown({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY })} // Pass clientX/Y
+      onMouseDown={(e) => handleMouseDown({ clientX: e.clientX, clientY: e.clientY })}
+      onTouchStart={(e) => handleMouseDown({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY })}
     >
       {/* Content inside the bar - will rotate with the parent */}
       <div className="flex items-center space-x-2">
@@ -592,10 +789,12 @@ interface EmojiPickerProps {
   boardExtensionValue: number;
   setBoardExtensionValue: React.Dispatch<React.SetStateAction<number>>;
   handleBoardExtension: () => void;
+  isPlayer3Computer: boolean; // New prop for computer player state
+  setIsPlayer3Computer: React.Dispatch<React.SetStateAction<boolean>>; // New prop for computer player setter
   currentBoardSize: number;
 }
 
-const EmojiPicker = ({ players, availableEmojis, selectedEmojis, onSelectEmoji, onStartGame, boardExtensionValue, setBoardExtensionValue, handleBoardExtension, currentBoardSize }: EmojiPickerProps) => {
+const EmojiPicker = ({ players, availableEmojis, selectedEmojis, onSelectEmoji, onStartGame, boardExtensionValue, setBoardExtensionValue, handleBoardExtension, isPlayer3Computer, setIsPlayer3Computer, currentBoardSize }: EmojiPickerProps) => {
   // Get all emojis that have been selected by any player
   const usedEmojis = Object.values(selectedEmojis);
 
@@ -610,17 +809,20 @@ const EmojiPicker = ({ players, availableEmojis, selectedEmojis, onSelectEmoji, 
             <div className="flex flex-wrap justify-center gap-1.5"> {/* Adjusted gap */}
               {availableEmojis.map(emoji => {
                 // Check if the emoji is already selected by another player
+                // Also disable emoji selection for computer player
                 const isEmojiUsed = usedEmojis.includes(emoji) && selectedEmojis[player.id] !== emoji;
+                const isDisabledForComputer = (player.id === 2 && isPlayer3Computer); // Disable if player 3 is computer
+
                 return (
                   <button
                     key={emoji}
                     className={`p-2 rounded-xl text-2xl transition-all duration-200 ease-in-out shadow-md
                       ${selectedEmojis[player.id] === emoji ? 'bg-blue-300/70 ring-4 ring-blue-500/70' : 'bg-gray-200/50 hover:bg-gray-300/70'}
-                      ${isEmojiUsed ? 'opacity-50 cursor-not-allowed' : ''} /* Apply disabled style */
+                      ${isEmojiUsed || isDisabledForComputer ? 'opacity-50 cursor-not-allowed' : ''} /* Apply disabled style */
                       backdrop-blur-sm
                     `}
                     onClick={() => onSelectEmoji(player.id, emoji)}
-                    disabled={isEmojiUsed} // Disable button if emoji is used
+                    disabled={isEmojiUsed || isDisabledForComputer} // Disable button if emoji is used or if computer player
                   >
                     {emoji}
                   </button>
@@ -628,12 +830,30 @@ const EmojiPicker = ({ players, availableEmojis, selectedEmojis, onSelectEmoji, 
               })}
             </div>
             {selectedEmojis[player.id] && (
-              <p className="mt-2 text-green-600 font-medium">{`선택됨: ${selectedEmojis[player.id]}`}</p>
+              // "선택됨" 텍스트 색상을 흰색으로 변경
+              <p className="mt-2 text-white font-medium">{`선택됨: ${selectedEmojis[player.id]}`}</p>
+            )}
+            {/* Computer Player Toggle for Player 3 */}
+            {player.id === 2 && (
+              <div className="mt-4 flex items-center justify-center space-x-2">
+                <span className="text-white font-semibold">컴퓨터 플레이어 활성화</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    value=""
+                    className="sr-only peer"
+                    checked={isPlayer3Computer}
+                    onChange={(e) => setIsPlayer3Computer(e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
             )}
           </div>
         ))}
 
-        <div className="mt-4 pt-4 border-t border-gray-200/50">
+        {/* 보드 크기 확장 섹션의 상단 막대 제거 */}
+        <div className="mt-4 pt-4">
           <h3 className="text-lg font-semibold mb-2 text-white">보드 크기 확장 (현재: {currentBoardSize}x{currentBoardSize})</h3>
           <div className="flex items-center justify-center gap-2 mb-4">
             <input
@@ -660,7 +880,7 @@ const EmojiPicker = ({ players, availableEmojis, selectedEmojis, onSelectEmoji, 
           게임 시작
         </button>
       </div>
-    </div>
+    </div >
   );
 };
 
