@@ -19,7 +19,7 @@ const App = () => {
   const [players, setPlayers] = useState<Player[]>([ // Player data
     { id: 0, name: '플레이어 1', emoji: '🔴', turns: 0, color: 'bg-red-500' },
     { id: 1, name: '플레이어 2', emoji: '🔵', turns: 0, color: 'bg-blue-500' },
-    { id: 2, name: '플레이어 3', emoji: '🟢', turns: 0, color: 'bg-green-500' },
+    { id: 2, name: '플레이어 3', emoji: '�', turns: 0, color: 'bg-green-500' },
   ]);
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0); // Index of the current player
   const [timer, setTimer] = useState(20); // Current timer value
@@ -43,7 +43,7 @@ const App = () => {
 
   // Available emojis for selection
   const availableEmojis = [
-    '😀', '😂', '🥳', '😎', '🤩', '🚀', '🍧', '🌈', '🍕', '�',
+    '😀', '😂', '🥳', '😎', '🤩', '🚀', '🍧', '🌈', '🍕', '?',
     '🍩', '🍦', '🍓', '🍎', '⚽', '🚗', '❤️', '🎲', '🧩', '🏆'
   ];
 
@@ -608,7 +608,7 @@ const PlayerInfoBar = ({ player, isCurrentPlayer, timer, totalPlayers, playerInd
 
   // Use lazy initialization for position and snappedTo
   const [position, setPosition] = useState(() => getInitialPositionAndSnap().position);
-  const [snappedTo, setSnappedTo] = useState(() => getInitialPositionAndSnap().snappedTo);
+  const [snappedTo, setSnappedTo] = useState<string | null>(() => getInitialPositionAndSnap().snappedTo); // Explicitly type as string | null
 
   const [isDragging, setIsDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
